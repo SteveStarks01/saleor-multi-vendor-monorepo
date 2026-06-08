@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VendorStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum PaymentIntentKind {
+  ONLINE
+  COD
+  WHATSAPP
+}
+
+enum PaymentIntentStatus {
+  PENDING
+  ORDER_CREATED
+  FAILED
+  CANCELLED
+}
+
+model Vendor {
+  id                    String                     @id @default(cuid())
+  slug                  String                     @unique
+  shopName              String
+  description           String?
+  logoUrl               String?
+  email                 String                     @unique
+  phone                 String?
+  whatsappNumber        String?
+  status                VendorStatus               @default(PENDING)
+  codEnabled            Boolean                    @default(true)
+  whatsappCheckoutEnabled Boolean                  @default(true)
+  saleorUserId          String?
+  saleorChannelId       String?
+  saleorChannelSlug     String?
+  saleorWarehouseId     String?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  domains               VendorDomain[]
+  shippingProviders     VendorShippingProvider[]
+  orders                VendorOrder[]
+  paymentIntents        MarketplacePaymentIntent[]
+}
+
+model VendorDomain {
+  id          String   @id @default(cuid())
+  hostname    String   @unique
+  vendorId    String
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model VendorShippingProvider {
+  id            String   @id @default(cuid())
+  vendorId      String
+  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  providerSlug  String
+  providerName  String
+  serviceName   String
+  basePrice     Decimal  @db.Decimal(12, 2)
+  currency      String
+  minDays       Int?
+  maxDays       Int?
+  isEnabled     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([vendorId, providerSlug, serviceName])
+}
+
+model VendorOrder {
+  id            String   @id @default(cuid())
+  vendorId      String
+  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  saleorOrderId String
+  orderNumber   String?
+  status        String   @default("CREATED")
+  totalAmount   Decimal  @db.Decimal(12, 2)
+  currency      String
+  lineIds       Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([vendorId, saleorOrderId])
+}
+
+model MarketplacePaymentIntent {
+  id              String              @id @default(cuid())
+  vendorId        String?
+  vendor          Vendor?             @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  saleorCheckoutId String
+  saleorOrderId   String?
+  kind            PaymentIntentKind
+  status          PaymentIntentStatus @default(PENDING)
+  amount          Decimal             @db.Decimal(12, 2)
+  currency        String
+  whatsappMessage String?
+  metadata        Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}

@@ -1,0 +1,36 @@
+fragment OrderCreatedWebhookPayload on OrderCreated {
+  order {
+    userEmail
+    id
+    number
+    total {
+      gross {
+        amount
+        currency
+      }
+    }
+    lines {
+      id
+      quantity
+      totalPrice {
+        gross {
+          amount
+          currency
+        }
+      }
+      variant {
+        product {
+          metadata {
+            key
+            value
+          }
+        }
+      }
+    }
+    user {
+      email
+      firstName
+      lastName
+    }
+  }
+}

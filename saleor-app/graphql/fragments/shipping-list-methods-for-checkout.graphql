@@ -1,0 +1,19 @@
+fragment ShippingListMethodsForCheckoutPayload on ShippingListMethodsForCheckout {
+  checkout {
+    id
+    currency
+    channel {
+      slug
+    }
+    lines {
+      variant {
+        product {
+          metadata {
+            key
+            value
+          }
+        }
+      }
+    }
+  }
+}
