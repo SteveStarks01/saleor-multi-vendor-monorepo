@@ -1,26 +1,50 @@
 "use client";
-
-import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { SaleorCheckout, CheckoutSkeleton } from "@/checkout/views/saleor-checkout";
-import { OrderConfirmation, OrderConfirmationSkeleton } from "@/checkout/views/order-confirmation";
-import { getQueryParams } from "@/checkout/lib/utils/url";
+import { EmptyCartPage } from "./empty-cart-page/empty-cart-page";
+import { OrderConfirmationView } from "./order-confirmation/order-confirmation";
+import { SaleorCheckoutView } from "./saleor-checkout";
+import { PageNotFound } from "./page-not-found";
+import { useCheckoutIdFromUrl } from "@/checkout/hooks/use-checkout-id-from-url";
+import { useCheckoutQuery } from "@/checkout/graphql";
+import { Loader } from "@/ui/atoms/loader";
 
 export const RootViews = () => {
+	const checkoutId = useCheckoutIdFromUrl();
 	const searchParams = useSearchParams();
-	const orderId = getQueryParams(searchParams).orderId;
+	const orderId = searchParams.get("orderId");
+	const method = searchParams.get("method") || undefined;
+
+	const [result] = useCheckoutQuery({
+		variables: { id: checkoutId! },
+		pause: !checkoutId || !!orderId,
+	});
 
 	if (orderId) {
+		return <OrderConfirmationView orderId={orderId} method={method} />;
+	}
+
+	if (!checkoutId) {
+		return <PageNotFound />;
+	}
+
+	if (result.fetching) {
 		return (
-			<Suspense fallback={<OrderConfirmationSkeleton />}>
-				<OrderConfirmation />
-			</Suspense>
+			<div className="flex min-h-screen items-center justify-center">
+				<Loader />
+			</div>
 		);
 	}
 
-	return (
-		<Suspense fallback={<CheckoutSkeleton />}>
-			<SaleorCheckout />
-		</Suspense>
-	);
+	if (!result.data?.checkout) {
+		return <PageNotFound />;
+	}
+
+	const { checkout } = result.data;
+	const isCartEmpty = checkout.lines.length === 0;
+
+	if (isCartEmpty) {
+		return <EmptyCartPage />;
+	}
+
+	return <SaleorCheckoutView checkout={checkout} />;
 };

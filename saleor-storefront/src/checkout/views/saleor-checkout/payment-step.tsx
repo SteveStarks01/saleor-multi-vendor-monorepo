@@ -234,8 +234,49 @@ export const PaymentStep: FC<PaymentStepProps> = ({
 					});
 				}
 
+
 				// Process payment using available gateway
-				if (hasDummyGateway) {
+				if (paymentMethod === "cod" || paymentMethod === "whatsapp") {
+					// We initialize a specific transaction for COD/WhatsApp using the dummy gateway for now
+					// In a full integration, we'd have a specific gateway for this
+					const checkoutId = checkout.id;
+
+					const initResult = await transactionInitialize({
+						checkoutId,
+						paymentGateway: {
+							id: dummyGatewayId,
+							data: {
+								event: {
+									includePspReference: true,
+									type: "CHARGE_SUCCESS",
+									method: paymentMethod, // We add this here to flag the order processing method
+								},
+							},
+						},
+					});
+
+					if (initResult.error) {
+						setErrors({ payment: `Failed to initialize ${paymentMethod} payment.` });
+						return;
+					}
+
+					const completeResult = await checkoutComplete({ checkoutId });
+
+					if (completeResult.error || completeResult.data?.checkoutComplete?.errors?.length) {
+						setErrors({ payment: "Failed to complete order." });
+						return;
+					}
+
+					const order = completeResult.data?.checkoutComplete?.order;
+					if (order) {
+						// For WhatsApp, we might want to redirect directly to wa.me here
+						// or handle it in the order confirmation page
+						const newQuery = createQueryString(searchParams, { orderId: order.id, method: paymentMethod });
+						router.replace(`?${newQuery}`, { scroll: false });
+						return;
+					}
+				} else if (hasDummyGateway) {
+
 					const checkoutId = checkout.id;
 
 					const initResult = await transactionInitialize({
@@ -347,7 +388,7 @@ export const PaymentStep: FC<PaymentStepProps> = ({
 	const isDisabled =
 		isLoading ||
 		(!hasDummyGateway && !hasRealGateway) ||
-		(paymentMethod === "card" && !hasDummyGateway && !isCardValid);
+		(paymentMethod === "card" && !hasDummyGateway && !isCardValid) && paymentMethod !== "cod" && paymentMethod !== "whatsapp";
 
 	return (
 		<form className="space-y-8" onSubmit={handleSubmit}>
