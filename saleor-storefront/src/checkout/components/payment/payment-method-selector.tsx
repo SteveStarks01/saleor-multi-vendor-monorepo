@@ -5,7 +5,7 @@ import { CreditCard, Lock } from "lucide-react";
 import { Input } from "@/ui/components/ui/input";
 import { cn } from "@/lib/utils";
 
-export type PaymentMethodType = "card" | "paypal" | "ideal";
+export type PaymentMethodType = "card" | "paypal" | "ideal" | "cod" | "whatsapp";
 
 export interface CardData {
 	cardNumber: string;
@@ -55,7 +55,7 @@ export const PaymentMethodSelector: FC<PaymentMethodSelectorProps> = ({
 	onChange,
 	cardData,
 	onCardDataChange,
-	availableMethods = ["card", "paypal", "ideal"],
+	availableMethods = ["card", "cod", "whatsapp"],
 }) => {
 	// Local card state if not controlled
 	const [localCardData, setLocalCardData] = useState<CardData>({
@@ -182,6 +182,60 @@ export const PaymentMethodSelector: FC<PaymentMethodSelectorProps> = ({
 							<span className="font-bold text-blue-600">Pay</span>
 							<span className="font-bold text-blue-900">Pal</span>
 						</span>
+					</label>
+				)}
+
+
+				{/* Cash on Delivery */}
+				{availableMethods.includes("cod") && (
+					<label
+						className={cn(
+							"flex cursor-pointer items-center gap-4 rounded-lg border p-4 transition-colors",
+							"focus-within:ring-2 focus-within:ring-foreground focus-within:ring-offset-2",
+							value === "cod" ? "border-foreground" : "border-border",
+						)}
+					>
+						<input
+							type="radio"
+							name="payment"
+							value="cod"
+							checked={value === "cod"}
+							onChange={() => onChange("cod")}
+							className="sr-only"
+						/>
+						<RadioIndicator selected={value === "cod"} />
+						<div className="flex items-center justify-center rounded bg-amber-100 p-2 text-amber-700">
+							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+						</div>
+						<span className="font-medium">Cash on Delivery</span>
+					</label>
+				)}
+
+				{/* WhatsApp */}
+				{availableMethods.includes("whatsapp") && (
+					<label
+						className={cn(
+							"flex cursor-pointer items-center gap-4 rounded-lg border p-4 transition-colors",
+							"focus-within:ring-2 focus-within:ring-foreground focus-within:ring-offset-2",
+							value === "whatsapp" ? "border-foreground" : "border-border",
+						)}
+					>
+						<input
+							type="radio"
+							name="payment"
+							value="whatsapp"
+							checked={value === "whatsapp"}
+							onChange={() => onChange("whatsapp")}
+							className="sr-only"
+						/>
+						<RadioIndicator selected={value === "whatsapp"} />
+						<div className="flex items-center justify-center rounded bg-green-100 p-2 text-green-600">
+							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21"/><path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1"/></svg>
+						</div>
+						<div className="flex flex-col">
+							<span className="font-medium">Order via WhatsApp</span>
+							<span className="text-xs text-muted-foreground">Complete checkout in chat with the vendor</span>
+						</div>
 					</label>
 				)}
 

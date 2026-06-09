@@ -1,34 +1,41 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { PrismaClient } from "@prisma/client";
 
-import { allowCors, handleOptions } from "@/lib/http";
-import { addVendorDomain, getVendorBySlug, updateVendor } from "@/lib/marketplace";
+const prisma = new PrismaClient();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (handleOptions(req, res)) return;
-  allowCors(res);
+  const { slug } = req.query;
 
-  const slug = String(req.query.slug ?? "");
+  if (typeof slug !== "string") {
+    return res.status(400).json({ message: "Invalid vendor slug" });
+  }
 
-  try {
-    if (req.method === "GET") {
-      const vendor = await getVendorBySlug(slug);
-      if (!vendor) return res.status(404).json({ error: "Vendor not found" });
-      return res.status(200).json({ vendor });
+  if (req.method === "GET") {
+    try {
+      const vendor = await prisma.vendor.findUnique({
+        where: { slug },
+        select: {
+          id: true,
+          slug: true,
+          shopName: true,
+          description: true,
+          logoUrl: true,
+          whatsappNumber: true,
+          codEnabled: true,
+          whatsappCheckoutEnabled: true,
+        },
+      });
+
+      if (!vendor) {
+        return res.status(404).json({ message: "Vendor not found" });
+      }
+
+      res.status(200).json({ vendor });
+    } catch (error) {
+      console.error("Error fetching vendor:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
-
-    if (req.method === "PUT") {
-      const vendor = await updateVendor(slug, req.body);
-      return res.status(200).json({ vendor });
-    }
-
-    if (req.method === "POST" && req.body?.hostname) {
-      const domain = await addVendorDomain(slug, req.body.hostname);
-      return res.status(201).json({ domain });
-    }
-
-    res.setHeader("Allow", "GET,PUT,POST,OPTIONS");
-    return res.status(405).json({ error: "Method not allowed" });
-  } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : "Vendor request failed" });
+  } else {
+    res.status(405).json({ message: "Method not allowed" });
   }
 }

@@ -1,142 +1,187 @@
-"use client";
+import { useEffect, useState } from "react";
+import { CheckCircle2, Package, Truck, MessageSquare } from "lucide-react";
 
-import Link from "next/link";
-import { CheckCircle, Mail, MapPin, Package, CreditCard } from "lucide-react";
-import { useOrder } from "@/checkout/hooks/use-order";
-import { OrderSummary } from "@/checkout/views/saleor-checkout/order-summary";
-import { CheckoutHeader } from "@/checkout/views/saleor-checkout/checkout-header";
-import { DefaultChannelSlug } from "@/app/config";
-import { localeConfig } from "@/config/locale";
+import { useOrderQuery } from "@/checkout/graphql";
+import { formatMoney } from "@/checkout/lib/utils/money";
+import { Skeleton } from "@/ui/components/ui/skeleton";
+import { Button } from "@/ui/components/ui/button";
 
-/** Format address for display */
-function formatAddress(address: {
-	streetAddress1?: string | null;
-	city?: string | null;
-	postalCode?: string | null;
-	country?: { country?: string | null } | null;
-}) {
-	return [address.streetAddress1, address.city, address.postalCode, address.country?.country]
-		.filter(Boolean)
-		.join(", ");
-}
-
-/**
- * Order confirmation page - uses the same layout as SaleorCheckout
- * Renders after successful order creation with real order data.
- */
-export const OrderConfirmation = () => {
-	const { order } = useOrder();
-	const channel = DefaultChannelSlug;
-
-	// Calculate estimated delivery (7 days from now)
-	// Using a static calculation - this component only renders once after order creation
-	const estimatedDelivery = new Date();
-	estimatedDelivery.setDate(estimatedDelivery.getDate() + 7);
-	const formattedDelivery = estimatedDelivery.toLocaleDateString(localeConfig.default, {
-		weekday: "long",
-		month: "long",
-		day: "numeric",
+export const OrderConfirmationView = ({ orderId, method }: { orderId: string, method?: string }) => {
+	const [result] = useOrderQuery({
+		variables: { id: orderId },
+		pause: !orderId,
 	});
 
-	const shippingAddress = order.shippingAddress;
-	const billingAddress = order.billingAddress;
-	const email = order.userEmail || "";
+	const [waUrl, setWaUrl] = useState<string | null>(null);
+
+	const order = result.data?.order;
+	const fetching = result.fetching;
+
+	useEffect(() => {
+		if (method === "whatsapp" && order) {
+			const buildWaMessage = async () => {
+				try {
+					const vendorPhone = "1234567890";
+					const text = encodeURIComponent(`Hello, I would like to confirm my order #${order.number}.\nTotal: ${formatMoney(order.total.gross.amount, order.total.gross.currency)}\nPlease let me know the next steps.`);
+					setWaUrl(`https://wa.me/${vendorPhone}?text=${text}`);
+				} catch (err) {
+					console.error("Failed to build WhatsApp message", err);
+				}
+			};
+			buildWaMessage();
+		}
+	}, [method, order]);
+
+	if (fetching) {
+		return <OrderConfirmationSkeleton />;
+	}
+
+	if (!order) {
+		return (
+			<div className="flex flex-col items-center justify-center space-y-4 py-24 text-center">
+				<p className="text-muted-foreground">Order not found.</p>
+				<Button onClick={() => (window.location.href = "/")}>Return to Store</Button>
+			</div>
+		);
+	}
 
 	return (
-		<div className="min-h-screen bg-secondary">
-			{/* Header - same as checkout */}
-			<CheckoutHeader step={4} onStepClick={() => {}} />
+		<div className="mx-auto max-w-2xl space-y-8 py-12 md:py-24">
+			<div className="text-center">
+				<div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
+					<CheckCircle2 className="h-8 w-8" />
+				</div>
+				<h1 className="mt-6 text-3xl font-bold tracking-tight">Order confirmed</h1>
+				<p className="mt-2 text-muted-foreground">
+					Order #{order.number}
+				</p>
+			</div>
 
-			{/* Main content - same layout as checkout */}
-			<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-				{/* Two column layout: ~70% Content + ~30% Summary */}
-				<div className="flex flex-col gap-8 md:flex-row">
-					{/* Left column: Confirmation content (~70%) */}
-					<div className="order-2 min-w-0 flex-1 md:order-1">
-						<div className="rounded-lg border border-border bg-card p-6 md:p-8">
-							{/* Same content as ConfirmationStep */}
-							<div className="space-y-8">
-								{/* Success Header */}
-								<div className="space-y-4 text-center">
-									<div className="flex justify-center">
-										<div className="relative">
-											<div className="absolute inset-0 animate-ping rounded-full bg-green-400/30" />
-											<CheckCircle className="relative h-16 w-16 text-green-500" />
-										</div>
-									</div>
+			{method === "whatsapp" && waUrl && (
+				<div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center">
+					<MessageSquare className="mx-auto h-8 w-8 text-green-600" />
+					<h2 className="mt-4 text-xl font-semibold text-green-900">Complete your order via WhatsApp</h2>
+					<p className="mt-2 text-green-800">
+						Please click the button below to send your order details to the vendor. Your order is pending confirmation.
+					</p>
+					<Button className="mt-6 bg-green-600 hover:bg-green-700 text-white" asChild>
+						<a href={waUrl} target="_blank" rel="noopener noreferrer">
+							Send WhatsApp Message
+						</a>
+					</Button>
+				</div>
+			)}
+
+			<div className="rounded-xl border bg-card">
+				<div className="border-b p-6">
+					<h2 className="font-semibold">Order Summary</h2>
+				</div>
+				<div className="p-6">
+					<ul className="space-y-4">
+						{order.lines.map((line) => (
+							<li key={line.id} className="flex items-center justify-between">
+								<div className="flex items-center space-x-4">
+									{line.thumbnail?.url && (
+										<img
+											src={line.thumbnail.url}
+											alt={line.productName}
+											className="h-16 w-16 rounded-md object-cover"
+										/>
+									)}
 									<div>
-										<p className="text-muted-foreground">Order #{order.number}</p>
-										<h1 className="mt-1 text-2xl font-semibold">Thank you for your order!</h1>
+										<p className="font-medium">{line.productName}</p>
+										<p className="text-sm text-muted-foreground">Qty: {line.quantity}</p>
 									</div>
 								</div>
-
-								{/* Order Confirmation Card */}
-								<div className="overflow-hidden rounded-lg border border-border">
-									<div className="bg-secondary/50 border-b border-border p-4">
-										<h2 className="font-semibold">Your order is confirmed</h2>
-										<p className="mt-1 text-sm text-muted-foreground">
-											You&apos;ll receive a confirmation email at {email}
-										</p>
-									</div>
-
-									{/* Order Details */}
-									<div className="space-y-4 p-4">
-										<div className="flex items-start gap-3">
-											<Mail className="mt-0.5 h-5 w-5 text-muted-foreground" />
-											<div>
-												<p className="text-sm font-medium">Confirmation email sent</p>
-												<p className="text-sm text-muted-foreground">{email}</p>
-											</div>
-										</div>
-										{shippingAddress && (
-											<div className="flex items-start gap-3">
-												<MapPin className="mt-0.5 h-5 w-5 text-muted-foreground" />
-												<div>
-													<p className="text-sm font-medium">Shipping address</p>
-													<p className="text-sm text-muted-foreground">{formatAddress(shippingAddress)}</p>
-												</div>
-											</div>
-										)}
-										{billingAddress && (
-											<div className="flex items-start gap-3">
-												<CreditCard className="mt-0.5 h-5 w-5 text-muted-foreground" />
-												<div>
-													<p className="text-sm font-medium">Billing address</p>
-													<p className="text-sm text-muted-foreground">{formatAddress(billingAddress)}</p>
-												</div>
-											</div>
-										)}
-										<div className="flex items-start gap-3">
-											<Package className="mt-0.5 h-5 w-5 text-muted-foreground" />
-											<div>
-												<p className="text-sm font-medium">Estimated delivery</p>
-												<p className="text-sm text-muted-foreground">{formattedDelivery}</p>
-											</div>
-										</div>
-									</div>
-								</div>
-
-								{/* Actions */}
-								<div className="flex flex-col gap-4 sm:flex-row">
-									<Link
-										href={`/${channel}`}
-										className="inline-flex h-12 flex-1 items-center justify-center rounded-md border border-input bg-transparent px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-									>
-										Continue shopping
-									</Link>
-								</div>
-							</div>
-						</div>
-					</div>
-
-					{/* Right column: Summary (~30%, max 380px) */}
-					<div className="order-1 md:order-2 md:shrink-0 md:basis-[30%]">
-						<div className="overflow-hidden rounded-lg border border-border bg-card md:sticky md:top-8">
-							<OrderSummary order={order} editable={false} />
-						</div>
+								<p className="font-medium">
+									{formatMoney(line.totalPrice.gross.amount, line.totalPrice.gross.currency)}
+								</p>
+							</li>
+						))}
+					</ul>
+				</div>
+				<div className="border-t bg-muted/50 p-6">
+					<div className="flex items-center justify-between font-bold">
+						<span>Total</span>
+						<span>{formatMoney(order.total.gross.amount, order.total.gross.currency)}</span>
 					</div>
 				</div>
-			</main>
+			</div>
+
+			<div className="grid gap-6 md:grid-cols-2">
+				<div className="rounded-xl border bg-card p-6">
+					<div className="mb-4 flex items-center gap-2 font-semibold">
+						<Package className="h-5 w-5" />
+						Shipping Address
+					</div>
+					{order.shippingAddress ? (
+						<address className="not-italic text-muted-foreground">
+							{order.shippingAddress.firstName} {order.shippingAddress.lastName}
+							<br />
+							{order.shippingAddress.streetAddress1}
+							{order.shippingAddress.streetAddress2 && (
+								<>
+									<br />
+									{order.shippingAddress.streetAddress2}
+								</>
+							)}
+							<br />
+							{order.shippingAddress.city}, {order.shippingAddress.postalCode}
+							<br />
+							{order.shippingAddress.country.country}
+						</address>
+					) : (
+						<p className="text-muted-foreground">No shipping address provided.</p>
+					)}
+				</div>
+				<div className="rounded-xl border bg-card p-6">
+					<div className="mb-4 flex items-center gap-2 font-semibold">
+						<Truck className="h-5 w-5" />
+						Shipping Method
+					</div>
+					<p className="text-muted-foreground">
+						{order.shippingMethodName || "Standard Shipping"}
+					</p>
+				</div>
+			</div>
+
+			<div className="text-center">
+				<Button onClick={() => (window.location.href = "/")} variant="outline">
+					Continue Shopping
+				</Button>
+			</div>
+		</div>
+	);
+};
+
+const OrderConfirmationSkeleton = () => {
+	return (
+		<div className="mx-auto max-w-2xl space-y-8 py-12 md:py-24">
+			<div className="flex flex-col items-center text-center">
+				<Skeleton className="h-16 w-16 rounded-full" />
+				<Skeleton className="mt-6 h-8 w-48" />
+				<Skeleton className="mt-2 h-4 w-32" />
+			</div>
+
+			<div className="rounded-xl border bg-card">
+				<div className="border-b p-6">
+					<Skeleton className="h-6 w-32" />
+				</div>
+				<div className="p-6 space-y-4">
+					{[1, 2].map((i) => (
+						<div key={i} className="flex items-center justify-between">
+							<div className="flex items-center space-x-4">
+								<Skeleton className="h-16 w-16 rounded-md" />
+								<div className="space-y-2">
+									<Skeleton className="h-4 w-32" />
+									<Skeleton className="h-3 w-16" />
+								</div>
+							</div>
+							<Skeleton className="h-4 w-16" />
+						</div>
+					))}
+				</div>
+			</div>
 		</div>
 	);
 };

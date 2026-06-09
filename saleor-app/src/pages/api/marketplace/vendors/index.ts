@@ -1,26 +1,58 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { PrismaClient } from "@prisma/client";
 
-import { allowCors, handleOptions } from "@/lib/http";
-import { createVendor, listVendors } from "@/lib/marketplace";
+const prisma = new PrismaClient();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (handleOptions(req, res)) return;
-  allowCors(res);
+  if (req.method === "POST") {
+    try {
+      const { shopName, email, whatsappNumber, description } = req.body;
 
-  try {
-    if (req.method === "GET") {
-      const vendors = await listVendors({ activeOnly: req.query.active === "true" });
-      return res.status(200).json({ vendors });
+      if (!shopName || !email) {
+        return res.status(400).json({ error: "shopName and email are required" });
+      }
+
+      const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
+
+      const vendor = await prisma.vendor.create({
+        data: {
+          slug,
+          shopName,
+          email,
+          whatsappNumber,
+          description,
+          status: "PENDING",
+        },
+      });
+
+      res.status(201).json({ vendor });
+    } catch (error) {
+      console.error("Error creating vendor:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-
-    if (req.method === "POST") {
-      const vendor = await createVendor(req.body);
-      return res.status(201).json({ vendor });
+  } else if (req.method === "GET") {
+    try {
+      const vendors = await prisma.vendor.findMany({
+        where: {
+          status: "ACTIVE",
+        },
+        select: {
+          id: true,
+          slug: true,
+          shopName: true,
+          description: true,
+          logoUrl: true,
+          whatsappNumber: true,
+          codEnabled: true,
+          whatsappCheckoutEnabled: true,
+        },
+      });
+      res.status(200).json({ vendors });
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
-
-    res.setHeader("Allow", "GET,POST,OPTIONS");
-    return res.status(405).json({ error: "Method not allowed" });
-  } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : "Vendor request failed" });
+  } else {
+    res.status(405).json({ message: "Method not allowed" });
   }
 }
