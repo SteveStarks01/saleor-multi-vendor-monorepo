@@ -4,7 +4,7 @@ from operator import attrgetter
 from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.core.serializers.json import DjangoJSONEncoder
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import JSONField  # type: ignore
 from prices import Money
@@ -51,8 +51,9 @@ class Payment(ModelWithMetadata):
         default=Decimal("0.0"),
     )
     currency = models.CharField(
-        max_length=settings.DEFAULT_CURRENCY_CODE_LENGTH
-    )  # FIXME: add ISO4217 validator
+        max_length=settings.DEFAULT_CURRENCY_CODE_LENGTH,
+        validators=[RegexValidator(r"^[a-zA-Z]{3}$")],
+    )
 
     checkout = models.ForeignKey(
         Checkout, null=True, related_name="payments", on_delete=models.SET_NULL
@@ -225,7 +226,10 @@ class Transaction(models.Model):
     action_required_data = JSONField(
         blank=True, default=dict, encoder=DjangoJSONEncoder
     )
-    currency = models.CharField(max_length=settings.DEFAULT_CURRENCY_CODE_LENGTH)
+    currency = models.CharField(
+        max_length=settings.DEFAULT_CURRENCY_CODE_LENGTH,
+        validators=[RegexValidator(r"^[a-zA-Z]{3}$")],
+    )
     amount = models.DecimalField(
         max_digits=settings.DEFAULT_MAX_DIGITS,
         decimal_places=settings.DEFAULT_DECIMAL_PLACES,
